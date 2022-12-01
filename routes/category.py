@@ -1,10 +1,10 @@
-from unittest import result
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 from config.db import conn
 from models.category import categories
 from schemas.schemas import Category
 from schemas.schemas import Category_Update
+import crawl as crawler
 
 
 category = APIRouter()
@@ -94,3 +94,37 @@ def delete_category_endpoint(id: int):
 def get_youngest_categories_endpoint():
     result = get_youngest_child_categories()
     return result
+
+
+old_categories = get_categories()
+new_categories = []
+all_cate_ids = [2]
+
+def get_cate(data):
+    _id, parent_id = data
+    df = crawler.get_data_from_api(crawler.data_url + str(_id), 'children_categories')
+    if(not 'id' in df.columns):
+        return  
+    
+    new_cate = crawler.get_data_from_api(crawler.data_url + str(_id),'category')
+    new_cate['parent_category'] = _id
+    new_cate['id'] = int(new_cate['id'])
+    new_cate in old_categories and new_categories.append(new_cate)
+    # print(len(all_cate_ids))
+    cur_cate_ids = df['id'].values.tolist()
+    new_cate_ids = [i for i in cur_cate_ids if i not in all_cate_ids]
+    
+    if(new_cate_ids == []):
+        return 
+    all_cate_ids.extend(new_cate_ids)
+    next_cate = [[i, _id] for i in new_cate_ids]
+    crawler.runner(next_cate, get_cate)
+            
+# def crawl_categories():
+#     get_cate([2, 2])
+
+@category.get("/crawl-categories")
+def crawl_categories_endpoint():
+    get_cate([2, 2])
+    # return get_categories()
+    return new_categories
